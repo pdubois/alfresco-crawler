@@ -218,7 +218,15 @@ public class ParralelCrawler implements ApplicationEventPublisherAware
 
                     public void process(NodeRef currentNode) throws Throwable
                     {
-
+                        AuthenticationUtil.runAsSystem(new RunAsWork<Void>()
+                        {
+                            public Void doWork() throws Exception
+                            {
+                                //execute the script action on the node
+                                
+                                return null;
+                            }
+                        });
                             
                         
                     }
