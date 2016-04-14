@@ -33,13 +33,13 @@ import org.alfresco.util.VmShutdownListener.VmShutdownException;
  * 
  * @author Philippe
  */
-public class ParralelCrawler implements ApplicationEventPublisherAware
+public class ParallelCrawler implements ApplicationEventPublisherAware
 {
     private static VmShutdownListener vmShutdownListener = new VmShutdownListener("ParralelCrawler");
     private long LOCK_TIME_TO_LIVE = 10000;
     private long LOCK_REFRESH_TIME = 5000;
     private int bigPageLen = 50000;
-    private static Log logger = LogFactory.getLog(ParralelCrawler.class);
+    private static Log logger = LogFactory.getLog(ParallelCrawler.class);
     private ApplicationEventPublisher applicationEventPublisher;
     private SearchService searchService;
     private TransactionService transactionService;
