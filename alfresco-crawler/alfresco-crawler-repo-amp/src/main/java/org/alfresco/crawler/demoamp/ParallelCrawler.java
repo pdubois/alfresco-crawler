@@ -3,18 +3,28 @@ package org.alfresco.crawler.demoamp;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
+import org.alfresco.repo.action.executer.ScriptActionExecuter;
 import org.alfresco.repo.batch.BatchProcessor;
 import org.alfresco.repo.batch.BatchProcessor.BatchProcessWorker;
+import org.alfresco.repo.jscript.ScriptNode;
+import org.alfresco.repo.jscript.ScriptUtils;
 import org.alfresco.repo.lock.JobLockService;
 import org.alfresco.repo.lock.JobLockService.JobLockRefreshCallback;
+import org.alfresco.repo.nodelocator.NodeLocatorService;
+import org.alfresco.repo.nodelocator.XPathNodeLocator;
 import org.alfresco.repo.lock.LockAcquisitionException;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.repo.security.authentication.AuthenticationUtil.RunAsWork;
 import org.alfresco.repo.transaction.RetryingTransactionHelper.RetryingTransactionCallback;
+import org.alfresco.service.cmr.action.Action;
+import org.alfresco.service.cmr.action.ActionService;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.StoreRef;
 import org.alfresco.service.cmr.search.ResultSet;
@@ -36,6 +46,7 @@ import org.alfresco.util.VmShutdownListener.VmShutdownException;
 public class ParallelCrawler implements ApplicationEventPublisherAware
 {
     private static VmShutdownListener vmShutdownListener = new VmShutdownListener("ParralelCrawler");
+    private static String baseScriptPath = "/app:company_home/app:dictionary/app:scripts/";
     private long LOCK_TIME_TO_LIVE = 10000;
     private long LOCK_REFRESH_TIME = 5000;
     private int bigPageLen = 50000;
@@ -48,6 +59,27 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private Boolean isRunning;
     private JobLockService jobLockService;
     private String query;
+    private String scriptName;
+    private ActionService actionService;
+    private NodeLocatorService nodeLocatorService;
+    
+    public void setNodeLocatorService(NodeLocatorService nodeLocatorService)
+    {
+        this.nodeLocatorService = nodeLocatorService;
+    }
+
+
+    public void setActionService(ActionService actionService)
+    {
+        this.actionService = actionService;
+    }
+
+
+    public void setScriptName(String scriptName)
+    {
+        this.scriptName = scriptName;
+    }
+
     private int threadNumber = 2;
     
     
@@ -218,12 +250,21 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
 
                     public void process(NodeRef currentNode) throws Throwable
                     {
+                        final NodeRef fCurrentNode = currentNode;
                         AuthenticationUtil.runAsSystem(new RunAsWork<Void>()
                         {
                             public Void doWork() throws Exception
                             {
                                 //execute the script action on the node
-                                
+                                //see line 800 ActionServiceImplTest
+                                String scriptPath = baseScriptPath + scriptName;
+                                final Map<String, Serializable> params = new HashMap<>(1, 1.0f);
+                                params.put(XPathNodeLocator.QUERY_KEY, scriptPath);
+                                NodeRef script = nodeLocatorService.getNode(XPathNodeLocator.NAME, null, params);
+                                Action action = actionService.createAction(ScriptActionExecuter.NAME);
+                                action.setParameterValue(ScriptActionExecuter.PARAM_SCRIPTREF, script);
+                                // Execute the action
+                                actionService.executeAction(action, fCurrentNode);
                                 return null;
                             }
                         });
