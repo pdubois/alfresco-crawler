@@ -46,7 +46,7 @@ import org.alfresco.util.VmShutdownListener.VmShutdownException;
 public class ParallelCrawler implements ApplicationEventPublisherAware
 {
     private static VmShutdownListener vmShutdownListener = new VmShutdownListener("ParralelCrawler");
-    private static String baseScriptPath = "/app:company_home/app:dictionary/app:scripts/";
+    private final static String baseScriptPath = "/app:company_home/app:dictionary/app:scripts/";
     private long LOCK_TIME_TO_LIVE = 10000;
     private long LOCK_REFRESH_TIME = 5000;
     private int bigPageLen = 50000;
@@ -62,6 +62,11 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private String scriptName;
     private ActionService actionService;
     private NodeLocatorService nodeLocatorService;
+    
+    public void setBigPageLen(int bigPageLen)
+    {
+        this.bigPageLen = bigPageLen;
+    }
     
     public void setNodeLocatorService(NodeLocatorService nodeLocatorService)
     {
@@ -107,6 +112,11 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
 
         PropertyCheck.mandatory(this, "transactionService", transactionService);
         PropertyCheck.mandatory(this, "searchService", searchService);
+        PropertyCheck.mandatory(this, "nodeLocatorService", nodeLocatorService);
+        PropertyCheck.mandatory(this, "actionService", actionService);
+        PropertyCheck.mandatory(this, "scriptName", scriptName);
+        PropertyCheck.mandatory(this, "query", query);
+        PropertyCheck.mandatory(this, "jobLockService", jobLockService);
     }
 
     /**

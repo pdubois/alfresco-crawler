@@ -3,12 +3,28 @@ package org.alfresco.crawler.demoamp.test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
 import org.alfresco.crawler.demoamp.DemoComponent;
 import org.alfresco.model.ContentModel;
+import org.alfresco.repo.content.MimetypeMap;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
+import org.alfresco.repo.transaction.RetryingTransactionHelper.RetryingTransactionCallback;
+import org.alfresco.service.ServiceRegistry;
+import org.alfresco.service.cmr.model.FileFolderService;
+import org.alfresco.service.cmr.model.FileInfo;
+import org.alfresco.service.cmr.repository.ContentService;
+import org.alfresco.service.cmr.repository.ContentWriter;
 import org.alfresco.service.cmr.repository.NodeRef;
 import org.alfresco.service.cmr.repository.NodeService;
+import org.alfresco.service.cmr.search.SearchService;
+import org.alfresco.service.namespace.QName;
+import org.alfresco.service.transaction.TransactionService;
 import org.apache.log4j.Logger;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +60,8 @@ import com.tradeshift.test.remote.RemoteTestRunner;
 @ContextConfiguration("classpath:alfresco/application-context.xml")
 public class DemoComponentTest {
     
+    private static final int NUMBER_OF_TESTING_NODES =10;
+    
     private static final String ADMIN_USER_NAME = "admin";
 
     static Logger log = Logger.getLogger(DemoComponentTest.class);
@@ -59,6 +77,85 @@ public class DemoComponentTest {
     public void testWiring() {
         assertNotNull(demoComponent);
     }
+    
+    @Autowired
+    @Qualifier("FileFolderService")
+    private FileFolderService ffs;
+    
+    @Autowired
+    @Qualifier("SearchService")
+    private SearchService searchService;
+ 
+    @Autowired
+    @Qualifier("ServiceRegistry")
+    private  ServiceRegistry serviceRegistry;
+    
+    private String testFolderName;
+    
+    private NodeRef testFolderNodeRef;
+    
+    private ArrayList<NodeRef> listOfNodeRef;
+    
+    @Before
+    public  void before() {    
+            AuthenticationUtil.setFullyAuthenticatedUser(ADMIN_USER_NAME);
+            NodeRef companyHome = demoComponent.getCompanyHome();
+            // create a test folder for this run
+            testFolderName = "TestVersion" +  System.currentTimeMillis();
+            testFolderNodeRef = ffs.create(companyHome, testFolderName, ContentModel.TYPE_FOLDER).getNodeRef();
+            
+            // create children and populate with versioned nodes
+            createAndPopulate(testFolderNodeRef);
+    }
+    
+    private void createAndPopulate(NodeRef testFolderNodeRef)
+    {
+        listOfNodeRef = new ArrayList<NodeRef>(NUMBER_OF_TESTING_NODES);
+        createFirstGeneration(testFolderNodeRef, listOfNodeRef);
+
+    }
+    
+    private void createFirstGeneration(NodeRef testFolderNodeRef, List<NodeRef> listOfNodeRef)
+    {
+        final NodeRef finalTestFolderNodeRef = testFolderNodeRef;
+        final NodeService finalNodeService = nodeService;
+        final List<NodeRef> finalListOfNodeRef = listOfNodeRef;
+        // use TransactionWork to wrap service calls in a user transaction
+        TransactionService transactionService = serviceRegistry.getTransactionService();
+        RetryingTransactionCallback<Object> firstGenWork = new RetryingTransactionCallback<Object>()
+        {
+            public Object execute() throws Exception
+            {
+                ContentService contentService = serviceRegistry.getContentService();
+                for(int i = 0; i < NUMBER_OF_TESTING_NODES; i++)
+                {
+                    FileInfo fi = ffs.create(finalTestFolderNodeRef, "TESTNODE" + System.currentTimeMillis() + i, ContentModel.TYPE_CONTENT);
+                    // adding versionable aspect
+                    
+                    finalListOfNodeRef.add(fi.getNodeRef());
+ 
+                    //Add some content
+                    //
+                    // write some content to new node
+                    //
+                    ContentWriter writer = contentService.getWriter(fi.getNodeRef(), ContentModel.PROP_CONTENT, true);
+                    writer.setMimetype(MimetypeMap.MIMETYPE_TEXT_PLAIN);
+                    writer.setEncoding("UTF-8");
+                    String text = "The quick brown fox jumps over the lazy dog" + i;
+                    writer.putContent(text);
+                    //add vesionable aspect
+                    HashMap<QName, Serializable> props = new HashMap<QName, Serializable>();
+                    props.put(ContentModel.PROP_INITIAL_VERSION, false);
+                    finalNodeService.addAspect(fi.getNodeRef(),ContentModel.ASPECT_VERSIONABLE, props);
+                }
+                return null;
+            }
+        };
+        transactionService.getRetryingTransactionHelper().doInTransaction(firstGenWork);
+    }
+    
+
+    
     
     @Test
     public void testGetCompanyHome() {
@@ -76,8 +173,8 @@ public class DemoComponentTest {
         NodeRef companyHome = demoComponent.getCompanyHome();
         int childNodeCount = demoComponent.childNodesCount(companyHome);
         assertNotNull(childNodeCount);
-        // There are 7 folders by default under Company Home
-        assertEquals(7, childNodeCount);
+        // There are 8 folders by default under Company Home
+        assertEquals(8, childNodeCount);
     }
 
 }
