@@ -24,5 +24,16 @@
       <property name="scriptName">
          <value>cm:TestScript.js</value>
       </property>
+      <property name="nodeLocatorService">
+         <ref bean="nodeLocatorService" />
+      </property>
+      <property name="actionService">
+         <ref bean="ActionService" />
+      </property>
+      <property name="nodeService">
+         <ref bean="NodeService" />
+      </property>
    </bean>
+   
+   
 </beans>

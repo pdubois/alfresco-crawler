@@ -3,34 +3,34 @@ package org.alfresco.crawler.demoamp;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
+import org.alfresco.model.ContentModel;
 import org.alfresco.repo.action.executer.ScriptActionExecuter;
 import org.alfresco.repo.batch.BatchProcessor;
 import org.alfresco.repo.batch.BatchProcessor.BatchProcessWorker;
-import org.alfresco.repo.jscript.ScriptNode;
-import org.alfresco.repo.jscript.ScriptUtils;
 import org.alfresco.repo.lock.JobLockService;
 import org.alfresco.repo.lock.JobLockService.JobLockRefreshCallback;
 import org.alfresco.repo.nodelocator.NodeLocatorService;
-import org.alfresco.repo.nodelocator.XPathNodeLocator;
 import org.alfresco.repo.lock.LockAcquisitionException;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.repo.security.authentication.AuthenticationUtil.RunAsWork;
 import org.alfresco.repo.transaction.RetryingTransactionHelper.RetryingTransactionCallback;
 import org.alfresco.service.cmr.action.Action;
 import org.alfresco.service.cmr.action.ActionService;
+import org.alfresco.service.cmr.repository.ChildAssociationRef;
 import org.alfresco.service.cmr.repository.NodeRef;
+import org.alfresco.service.cmr.repository.NodeService;
 import org.alfresco.service.cmr.repository.StoreRef;
 import org.alfresco.service.cmr.search.ResultSet;
 import org.alfresco.service.cmr.search.SearchParameters;
 import org.alfresco.service.cmr.search.SearchService;
+import org.alfresco.service.namespace.NamespaceService;
 import org.alfresco.service.namespace.QName;
+import org.alfresco.service.namespace.RegexQNamePattern;
 import org.alfresco.service.transaction.TransactionService;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -49,7 +49,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private final static String baseScriptPath = "/app:company_home/app:dictionary/app:scripts/";
     private long LOCK_TIME_TO_LIVE = 10000;
     private long LOCK_REFRESH_TIME = 5000;
-    private int bigPageLen = 50000;
+    private int bigPageLen = 1000;
     private static Log logger = LogFactory.getLog(ParallelCrawler.class);
     private ApplicationEventPublisher applicationEventPublisher;
     private SearchService searchService;
@@ -62,32 +62,36 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private String scriptName;
     private ActionService actionService;
     private NodeLocatorService nodeLocatorService;
-    
+    private NodeService nodeService;
+    private NodeRef script = null;
+    private Action action = null;
+
+    public void setNodeService(NodeService nodeService)
+    {
+        this.nodeService = nodeService;
+    }
+
     public void setBigPageLen(int bigPageLen)
     {
         this.bigPageLen = bigPageLen;
     }
-    
+
     public void setNodeLocatorService(NodeLocatorService nodeLocatorService)
     {
         this.nodeLocatorService = nodeLocatorService;
     }
-
 
     public void setActionService(ActionService actionService)
     {
         this.actionService = actionService;
     }
 
-
     public void setScriptName(String scriptName)
     {
         this.scriptName = scriptName;
     }
 
-    private int threadNumber = 2;
-    
-    
+    private int threadNumber = 4;
 
     public void setThreadNumber(int threadNumber)
     {
@@ -169,24 +173,24 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                 {
                     logger.trace("ParralelCrawler: job lock held");
                 }
-                
+
                 try
                 {
                     AuthenticationUtil.runAsSystem(new RunAsWork<Void>()
-                    {
-                        public Void doWork() throws Exception
                         {
-                            startDate = new Date();
-                            isRunning = true;
-                            executeInternal();
-                            return null;
-                        }
-                    });
+                            public Void doWork() throws Exception
+                            {
+                                startDate = new Date();
+                                isRunning = true;
+                                executeInternal();
+                                return null;
+                            }
+                        });
                 }
                 catch (Exception e)
                 {
-                        // This is where push comms failure is logged on the first time
-                        logger.error("ParralelCrawler: unable to push:" + e.getMessage());
+                    // This is where push comms failure is logged on the first time
+                    logger.error("ParralelCrawler: unable to push:" + e.getMessage());
                 }
                 finally
                 {
@@ -200,7 +204,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                 {
                     logger.trace("ParralelCrawler: job finished");
                 }
-                
+
                 // Release the locks on the job and stop refreshing
                 callback.isActive = false;
                 jobLockService.releaseLock(lockToken, lockQName);
@@ -233,8 +237,8 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                     {
                         StoreRef storeRef = new StoreRef(StoreRef.PROTOCOL_WORKSPACE, "SpacesStore");
                         // Get VersionableNodes
-                        Collection<NodeRef> bigPageNodes = executeQuery(storeRef, searchService,
-                                query, staticStartingElement, bigPageLen);
+                        Collection<NodeRef> bigPageNodes = executeQuery(storeRef, searchService, query,
+                                staticStartingElement, bigPageLen);
                         return bigPageNodes;
                     };
                 };
@@ -245,12 +249,12 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                 {
                     throw new VmShutdownException();
                 }
-                Collection<NodeRef> nodesToCleaned = transactionService.getRetryingTransactionHelper().doInTransaction(
-                        executeCallback, true);
-                final BatchProcessor<NodeRef> groupProcessor = new BatchProcessor<NodeRef>("VersionCleaner", this.transactionService.getRetryingTransactionHelper(), nodesToCleaned, threadNumber,
-                        5000,this.applicationEventPublisher, logger, 500);
-                
-                        
+                Collection<NodeRef> nodesToCleaned = transactionService.getRetryingTransactionHelper()
+                        .doInTransaction(executeCallback, true);
+                final BatchProcessor<NodeRef> groupProcessor = new BatchProcessor<NodeRef>("VersionCleaner",
+                        this.transactionService.getRetryingTransactionHelper(), nodesToCleaned, threadNumber, 5000,
+                        this.applicationEventPublisher, logger, 500);
+
                 class NodeVersionCleaner implements BatchProcessWorker<NodeRef>
                 {
                     public String getIdentifier(NodeRef entry)
@@ -262,38 +266,50 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                     {
                         final NodeRef fCurrentNode = currentNode;
                         AuthenticationUtil.runAsSystem(new RunAsWork<Void>()
-                        {
-                            public Void doWork() throws Exception
                             {
-                                //execute the script action on the node
-                                //see line 800 ActionServiceImplTest
-                                String scriptPath = baseScriptPath + scriptName;
-                                final Map<String, Serializable> params = new HashMap<>(1, 1.0f);
-                                params.put(XPathNodeLocator.QUERY_KEY, scriptPath);
-                                NodeRef script = nodeLocatorService.getNode(XPathNodeLocator.NAME, null, params);
-                                Action action = actionService.createAction(ScriptActionExecuter.NAME);
-                                action.setParameterValue(ScriptActionExecuter.PARAM_SCRIPTREF, script);
-                                // Execute the action
-                                actionService.executeAction(action, fCurrentNode);
-                                return null;
-                            }
-                        });
-                            
-                        
+                                public Void doWork() throws Exception
+                                {
+                                    // execute the script action on the node
+                                    // see line 800 ActionServiceImplTest
+                                    if (script == null)
+                                    {
+                                        NodeRef home = getCompanyHome();
+                                        List<ChildAssociationRef> associationRefs = nodeService.getChildAssocs(home,
+                                                ContentModel.ASSOC_CONTAINS, new RegexQNamePattern(
+                                                        NamespaceService.APP_MODEL_1_0_URI, "dictionary"));
+                                        NodeRef dico = associationRefs.get(0).getChildRef();
+                                        associationRefs = nodeService.getChildAssocs(dico, ContentModel.ASSOC_CONTAINS,
+                                                new RegexQNamePattern(NamespaceService.APP_MODEL_1_0_URI, "scripts"));
+                                        NodeRef scriptsFolder = associationRefs.get(0).getChildRef();
+                                        script = nodeService.getChildAssocs(scriptsFolder,
+                                                ContentModel.ASSOC_CONTAINS, QName.createQName(
+                                                        NamespaceService.CONTENT_MODEL_1_0_URI, "TestScript.js"))
+                                                .get(0).getChildRef();
+                                        action = actionService.createAction(ScriptActionExecuter.NAME);
+                                        
+                                    }
+                                    
+                                    action.setParameterValue(ScriptActionExecuter.PARAM_SCRIPTREF, script);
+                                    // Execute the action
+                                    actionService.executeAction(action, fCurrentNode);
+                                    return null;
+                                }
+                            });
+
                     }
 
                     @Override
                     public void beforeProcess() throws Throwable
                     {
                         // TODO Auto-generated method stub
-                        
+
                     }
 
                     @Override
                     public void afterProcess() throws Throwable
                     {
                         // TODO Auto-generated method stub
-                        
+
                     }
                 }
 
@@ -356,7 +372,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
         results.close();
         return nodeToClean;
     }
-    
+
     private class TrackerJobLockRefreshCallback implements JobLockRefreshCallback
     {
         public boolean isActive = true;
@@ -377,4 +393,14 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
         }
     };
 
+    /**
+     * Returns the NodeRef of "Company Home"
+     *
+     * @return
+     */
+    protected NodeRef getCompanyHome()
+
+    {
+        return nodeLocatorService.getNode("companyhome", null, null);
+    }
 }
