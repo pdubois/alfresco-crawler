@@ -10,7 +10,7 @@
          <ref bean="jobLockService" />
       </property>
       <property name="threadNumber">
-         <value>2</value>
+         <value>6</value>
       </property>
       <property name="bigPageLen">
          <value>50000</value>

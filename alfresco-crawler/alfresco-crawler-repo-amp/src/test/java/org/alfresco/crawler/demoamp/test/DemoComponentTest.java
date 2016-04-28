@@ -1,17 +1,13 @@
 package org.alfresco.crawler.demoamp.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
-import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 import org.alfresco.crawler.demoamp.DemoComponent;
 import org.alfresco.crawler.demoamp.ParallelCrawler;
 import org.alfresco.model.ContentModel;
-import org.alfresco.repo.content.MimetypeMap;
 import org.alfresco.repo.security.authentication.AuthenticationUtil;
 import org.alfresco.repo.transaction.RetryingTransactionHelper.RetryingTransactionCallback;
 import org.alfresco.service.ServiceRegistry;
@@ -70,8 +66,6 @@ public class DemoComponentTest
     @Qualifier("NodeService")
     protected NodeService nodeService;
 
-
-
     @Autowired
     @Qualifier("FileFolderService")
     private FileFolderService ffs;
@@ -110,24 +104,18 @@ public class DemoComponentTest
         // create children and populate with versioned nodes
         createAndPopulate(testFolderNodeRef);
 
-        // childAssocRefs = nodeService.getChildAssocs(childNodeRef, ContentModel.ASSOC_CONTAINS, new
-        // RegexQNamePattern(NAMESPACE, "reference*"), false);
-        // get app:dictionary
         List<ChildAssociationRef> associationRefs = nodeService.getChildAssocs(companyHome, ContentModel.ASSOC_CONTAINS,
                 new RegexQNamePattern(NamespaceService.APP_MODEL_1_0_URI, "dictionary"));
         NodeRef dico = associationRefs.get(0).getChildRef();
-        System.out.println("***********DICO found:" + dico);
         associationRefs = nodeService.getChildAssocs(dico, ContentModel.ASSOC_CONTAINS,
                 new RegexQNamePattern(NamespaceService.APP_MODEL_1_0_URI, "scripts"));
         NodeRef scriptsFolder = associationRefs.get(0).getChildRef();
-        System.out.println("***********scriptsFolder found:" + scriptsFolder);
         associationRefs = nodeService.getChildAssocs(scriptsFolder, ContentModel.ASSOC_CONTAINS,
                 QName.createQName(NamespaceService.CONTENT_MODEL_1_0_URI, "TestScript.js"));
 
         if (associationRefs.size() == 0)
         {
             // script does not exist, create it
-            System.out.println("************************Script does not exist!!!!!");
             NodeRef script = this.nodeService.createNode(scriptsFolder, ContentModel.ASSOC_CONTAINS,
                     QName.createQName(NamespaceService.CONTENT_MODEL_1_0_URI, "TestScript.js"),
                     ContentModel.TYPE_CONTENT).getChildRef();
@@ -143,7 +131,7 @@ public class DemoComponentTest
         }
         else
         {
-            System.out.println("************************Script EXIST!!!!!");
+
         }
 
     }
@@ -175,20 +163,6 @@ public class DemoComponentTest
 
                         finalListOfNodeRef.add(fi.getNodeRef());
 
-                        // Add some content
-                        //
-                        // write some content to new node
-                        //
-                        ContentWriter writer = contentService.getWriter(fi.getNodeRef(), ContentModel.PROP_CONTENT,
-                                true);
-                        writer.setMimetype(MimetypeMap.MIMETYPE_TEXT_PLAIN);
-                        writer.setEncoding("UTF-8");
-                        String text = "The quick brown fox jumps over the lazy dog" + i;
-                        writer.putContent(text);
-                        // add vesionable aspect
-                        HashMap<QName, Serializable> props = new HashMap<QName, Serializable>();
-                        props.put(ContentModel.PROP_INITIAL_VERSION, false);
-                        finalNodeService.addAspect(fi.getNodeRef(), ContentModel.ASPECT_VERSIONABLE, props);
                     }
                     return null;
                 }
@@ -197,25 +171,31 @@ public class DemoComponentTest
     }
 
     @Test
-    public void testGetCompanyHome()
+    public void testDefault()
     {
+        parallelCrawler.setBigPageLen(5000);
         parallelCrawler.execute();
+        parallelCrawler.setThreadNumber(6);
         for (NodeRef nodeRef : listOfNodeRef)
         {
-           boolean test = nodeService.hasAspect(nodeRef, QName.createQName("crawler.test.model", "test"));
-           assertEquals(test,true);
+            boolean test = nodeService.hasAspect(nodeRef, QName.createQName("crawler.test.model", "test"));
+            assertEquals(test, true);
+        }
+    }
+
+    @Test
+    public void testSmallerBigPage()
+    {
+
+        parallelCrawler.setBigPageLen(10000);
+        parallelCrawler.execute();
+        parallelCrawler.setThreadNumber(10);
+        for (NodeRef nodeRef : listOfNodeRef)
+        {
+            boolean test = nodeService.hasAspect(nodeRef, QName.createQName("crawler.test.model", "test"));
+            assertEquals(test, true);
         }
 
     }
-
-    // @Test
-    // public void testChildNodesCount() {
-    // AuthenticationUtil.setFullyAuthenticatedUser(ADMIN_USER_NAME);
-    // NodeRef companyHome = demoComponent.getCompanyHome();
-    // int childNodeCount = demoComponent.childNodesCount(companyHome);
-    // assertNotNull(childNodeCount);
-    // // There are 8 folders by default under Company Home
-    // assertEquals(8, childNodeCount);
-    // }
 
 }

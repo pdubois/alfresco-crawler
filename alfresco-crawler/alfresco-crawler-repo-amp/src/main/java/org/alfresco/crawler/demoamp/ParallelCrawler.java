@@ -10,6 +10,7 @@ import java.util.List;
 
 import org.alfresco.model.ContentModel;
 import org.alfresco.repo.action.executer.ScriptActionExecuter;
+import org.alfresco.repo.batch.BatchProcessWorkProvider;
 import org.alfresco.repo.batch.BatchProcessor;
 import org.alfresco.repo.batch.BatchProcessor.BatchProcessWorker;
 import org.alfresco.repo.lock.JobLockService;
@@ -49,7 +50,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private final static String baseScriptPath = "/app:company_home/app:dictionary/app:scripts/";
     private long LOCK_TIME_TO_LIVE = 10000;
     private long LOCK_REFRESH_TIME = 5000;
-    private int bigPageLen = 1000;
+    private int bigPageLen = 5000;
     private static Log logger = LogFactory.getLog(ParallelCrawler.class);
     private ApplicationEventPublisher applicationEventPublisher;
     private SearchService searchService;
@@ -251,8 +252,30 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                 }
                 Collection<NodeRef> nodesToCleaned = transactionService.getRetryingTransactionHelper()
                         .doInTransaction(executeCallback, true);
+                /**
+                 * Instantiates a new batch processor.
+                 * 
+                 * @param processName
+                 *            the process name
+                 * @param retryingTransactionHelper
+                 *            the retrying transaction helper
+                 * @param collection
+                 *            the collection
+                 * @param workerThreads
+                 *            the number of worker threads
+                 * @param batchSize
+                 *            the number of entries we process at a time in a transaction
+                 * @param applicationEventPublisher
+                 *            the application event publisher (may be <tt>null</tt>)
+                 * @param logger
+                 *            the logger to use (may be <tt>null</tt>)
+                 * @param loggingInterval
+                 *            the number of entries to process before reporting progress
+                 *            
+                 * @deprecated Since 3.4, use the {@link BatchProcessWorkProvider} instead of the <tt>Collection</tt>
+                 */
                 final BatchProcessor<NodeRef> groupProcessor = new BatchProcessor<NodeRef>("VersionCleaner",
-                        this.transactionService.getRetryingTransactionHelper(), nodesToCleaned, threadNumber, 5000,
+                        this.transactionService.getRetryingTransactionHelper(), nodesToCleaned, threadNumber, 300,
                         this.applicationEventPublisher, logger, 500);
 
                 class NodeVersionCleaner implements BatchProcessWorker<NodeRef>
@@ -302,6 +325,8 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                     public void beforeProcess() throws Throwable
                     {
                         // TODO Auto-generated method stub
+                        String threadName = Thread.currentThread().getName();
+                        System.out.println("Thread name= " + threadName);
 
                     }
 
