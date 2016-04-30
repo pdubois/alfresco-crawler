@@ -7,10 +7,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.alfresco.model.ContentModel;
 import org.alfresco.repo.action.executer.ScriptActionExecuter;
-import org.alfresco.repo.batch.BatchProcessWorkProvider;
 import org.alfresco.repo.batch.BatchProcessor;
 import org.alfresco.repo.batch.BatchProcessor.BatchProcessWorker;
 import org.alfresco.repo.lock.JobLockService;
@@ -57,6 +57,9 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private TransactionService transactionService;
     private Date startDate;
     private Date endDate;
+    private AtomicInteger numOfProcessedNodes;
+
+
     private Boolean isRunning;
     private JobLockService jobLockService;
     private String query;
@@ -67,6 +70,11 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private NodeRef script = null;
     private Action action = null;
 
+    public AtomicInteger getNumOfProcessedNodes()
+    {
+        return numOfProcessedNodes;
+    }
+    
     public void setNodeService(NodeService nodeService)
     {
         this.nodeService = nodeService;
@@ -160,7 +168,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
         {
             logger.debug("Starting version store cleanup.");
         }
-
+        numOfProcessedNodes = new AtomicInteger(0);
         try
         {
             QName lockQName = QName.createQName("pc", "crawl");
@@ -314,6 +322,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                                     
                                     action.setParameterValue(ScriptActionExecuter.PARAM_SCRIPTREF, script);
                                     // Execute the action
+                                    numOfProcessedNodes.addAndGet(1);
                                     actionService.executeAction(action, fCurrentNode);
                                     return null;
                                 }

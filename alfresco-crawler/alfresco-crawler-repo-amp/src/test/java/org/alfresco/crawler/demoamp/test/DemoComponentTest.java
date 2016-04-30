@@ -175,6 +175,7 @@ public class DemoComponentTest
     {
         parallelCrawler.setBigPageLen(5000);
         parallelCrawler.execute();
+        System.out.println("Pocessed nodes:" + parallelCrawler.getNumOfProcessedNodes());
         parallelCrawler.setThreadNumber(6);
         for (NodeRef nodeRef : listOfNodeRef)
         {
@@ -189,6 +190,7 @@ public class DemoComponentTest
 
         parallelCrawler.setBigPageLen(10000);
         parallelCrawler.execute();
+        System.out.println("************* Pocessed nodes:" + parallelCrawler.getNumOfProcessedNodes());
         parallelCrawler.setThreadNumber(10);
         for (NodeRef nodeRef : listOfNodeRef)
         {
