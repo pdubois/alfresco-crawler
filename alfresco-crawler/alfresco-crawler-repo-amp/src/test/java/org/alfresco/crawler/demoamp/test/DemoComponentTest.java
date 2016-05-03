@@ -52,7 +52,7 @@ import com.tradeshift.test.remote.RemoteTestRunner;
 public class DemoComponentTest
 {
 
-    private final static String baseScriptPath = "/app:company_home/app:dictionary/app:scripts/";
+    //private final static String baseScriptPath = "/app:company_home/app:dictionary/app:scripts/";
     private static final int NUMBER_OF_TESTING_NODES = 30000;
 
     private static final String ADMIN_USER_NAME = "admin";
@@ -176,6 +176,7 @@ public class DemoComponentTest
         parallelCrawler.setBigPageLen(5000);
         parallelCrawler.execute();
         System.out.println("Pocessed nodes:" + parallelCrawler.getNumOfProcessedNodes());
+        System.out.println("Exec time:" + parallelCrawler.getExecTimeMs());
         parallelCrawler.setThreadNumber(6);
         for (NodeRef nodeRef : listOfNodeRef)
         {
@@ -189,9 +190,12 @@ public class DemoComponentTest
     {
 
         parallelCrawler.setBigPageLen(10000);
-        parallelCrawler.execute();
-        System.out.println("************* Pocessed nodes:" + parallelCrawler.getNumOfProcessedNodes());
+        
         parallelCrawler.setThreadNumber(10);
+        parallelCrawler.execute();
+        System.out.println("Pocessed nodes:" + parallelCrawler.getNumOfProcessedNodes());
+        System.out.println("Exec time:" + parallelCrawler.getExecTimeMs());
+
         for (NodeRef nodeRef : listOfNodeRef)
         {
             boolean test = nodeService.hasAspect(nodeRef, QName.createQName("crawler.test.model", "test"));

@@ -55,12 +55,12 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private ApplicationEventPublisher applicationEventPublisher;
     private SearchService searchService;
     private TransactionService transactionService;
-    private Date startDate;
-    private Date endDate;
+    private long startTime = 0;
+    private long endTime = 0;
     private AtomicInteger numOfProcessedNodes;
 
 
-    private Boolean isRunning;
+    private Boolean isRunning = false;
     private JobLockService jobLockService;
     private String query;
     private String scriptName;
@@ -69,6 +69,19 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
     private NodeService nodeService;
     private NodeRef script = null;
     private Action action = null;
+    
+    public long getExecTimeMs()
+    {
+        if (isRunning)
+        {
+            return (System.currentTimeMillis() - startTime);
+        }
+        else
+        {
+           //not running
+           return (endTime- startTime);
+        }
+    }
 
     public AtomicInteger getNumOfProcessedNodes()
     {
@@ -189,7 +202,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                         {
                             public Void doWork() throws Exception
                             {
-                                startDate = new Date();
+                                startTime = System.currentTimeMillis();
                                 isRunning = true;
                                 executeInternal();
                                 return null;
@@ -203,7 +216,7 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                 }
                 finally
                 {
-                    endDate = new Date();
+                    endTime = System.currentTimeMillis();
                     isRunning = false;
                 }
             }
@@ -335,7 +348,10 @@ public class ParallelCrawler implements ApplicationEventPublisherAware
                     {
                         // TODO Auto-generated method stub
                         String threadName = Thread.currentThread().getName();
-                        System.out.println("Thread name= " + threadName);
+                        if (logger.isDebugEnabled())
+                        {
+                            logger.debug(" Thread name= " + threadName);
+                        }
 
                     }
 
